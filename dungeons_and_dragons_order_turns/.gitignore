@@ -1,3 +1,6 @@
+# Ignoramos este fichero porque si no se sube a GitHub
+google-services.json
+
 # Miscellaneous
 *.class
 *.log
