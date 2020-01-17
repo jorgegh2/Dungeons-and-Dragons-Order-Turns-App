@@ -37,7 +37,7 @@ class MainScreen extends StatelessWidget {
               itemCount: docs.length,
               itemBuilder: (context, index) {
                 return ListTile(
-                  title: Text(docs[0].data["class"]),
+                  title: Text(docs[index].data["class"]),
                 );
               });
         },
