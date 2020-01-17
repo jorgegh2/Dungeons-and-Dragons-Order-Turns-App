@@ -117,24 +117,30 @@ class _AddCharacterPageState extends State<AddCharacterPage> {
               data['InitiativeValue'] = randomValue + _initiativeModifier;
               db
                   .collection('Characters')
-                  .orderBy('Turn')
+                  .orderBy('OriginalTurn')
                   .getDocuments()
                   .then((snapshots) {
                 if (snapshots.documents.isEmpty) {
                   data['OriginalFirst'] = true;
                   data['Turn'] = 1;
+                  data['OriginalTurn'] = 1;
                 } else {
                   data['OriginalFirst'] = false;
                   data['Turn'] = -1;
                   for (DocumentSnapshot ds in snapshots.documents) {
                     if (ds.data['InitiativeValue'] < data['InitiativeValue']) {
-                      if (data['Turn'] == -1) data['Turn'] = ds.data['Turn'];
+                      if (data['Turn'] == -1)
+                        data['OriginalTurn'] = data['Turn'] = ds.data['Turn'];
 
-                      ds.data['Turn'] = ds.data['Turn'] + 1;
-                      db.collection('Characters').document(ds.documentID).updateData(ds.data);
+                      ds.data['OriginalTurn'] =
+                          ds.data['Turn'] = ds.data['Turn'] + 1;
+                      db
+                          .collection('Characters')
+                          .document(ds.documentID)
+                          .updateData(ds.data);
                     } else {
                       if (ds == snapshots.documents.last)
-                        data['Turn'] = ds.data.length + 1;
+                        data['OriginalTurn'] = data['Turn'] = snapshots.documents.length + 1;
                       else
                         continue;
                     }
@@ -160,40 +166,62 @@ class MainScreen extends StatelessWidget {
         backgroundColor: Colors.red,
         title: Text("MainScreen"),
       ),
-      body: StreamBuilder(
-        stream: db.collection('Characters').orderBy("Turn").snapshots(),
-        builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text(snapshot.error.toString()));
-          }
-          if (!snapshot.hasData) {
-            return Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-          List<DocumentSnapshot> docs = snapshot.data.documents;
-          return ListView.builder(
-              itemCount: docs.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(docs[index].data["CharacterName"]),
-                  subtitle:
-                      Text(docs[index].data["InitiativeValue"].toString()),
-                  trailing: FlatButton(
-                    shape: CircleBorder(
-                        side: BorderSide(
-                            color: Colors.white.withAlpha(0), width: 20)),
-                    child: Icon(Icons.delete),
-                    onPressed: () {
-                      db
-                          .collection('Characters')
-                          .document(docs[index].documentID)
-                          .delete();
-                    },
-                  ),
-                );
+      body: Column(
+        children: <Widget>[
+          FlatButton(
+            color: Colors.red[100],
+            onPressed: () {
+              Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => CombatPage()))
+                  .then((_) {
+                db.collection('Characters').getDocuments().then((snapshot) {
+                  for (DocumentSnapshot ds in snapshot.documents) {
+                    ds.data['Turn'] = ds.data['OriginalTurn'];
+                    db.collection('Characters').document(ds.documentID).updateData(ds.data);
+                  }
+                });
               });
-        },
+            },
+            child: Text("Start Combat!"),
+          ),
+          Expanded(
+            child: StreamBuilder(
+              stream: db.collection('Characters').orderBy("OriginalTurn").snapshots(),
+              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text(snapshot.error.toString()));
+                }
+                if (!snapshot.hasData) {
+                  return Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+                List<DocumentSnapshot> docs = snapshot.data.documents;
+                return ListView.builder(
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(docs[index].data["CharacterName"]),
+                        subtitle: Text(
+                            docs[index].data["InitiativeValue"].toString()),
+                        trailing: FlatButton(
+                          shape: CircleBorder(
+                              side: BorderSide(
+                                  color: Colors.white.withAlpha(0), width: 20)),
+                          child: Icon(Icons.delete),
+                          onPressed: () {
+                            db
+                                .collection('Characters')
+                                .document(docs[index].documentID)
+                                .delete();
+                          },
+                        ),
+                      );
+                    });
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add),
@@ -232,19 +260,22 @@ class _CombatPageState extends State<CombatPage> {
                 color: Colors.pink[100],
                 child: Text("Pass Turn"),
                 onPressed: () {
-                  db.collection('Characters').getDocuments().then((snapshot) {
-                    for (DocumentSnapshot ds in snapshot.documents) {
-                      Map<String, dynamic> newData = new Map<String, dynamic>();
-                      newData['Turn'] = ds.data['Turn'] - 1;
-                      if (newData['Turn'] == 0)
-                        newData['Turn'] = snapshot.documents.length;
-                      ds.reference.updateData(newData);
-                      if (ds.data['OriginalFirst'] && newData['Turn'] == 1) {
-                        setState(() {
-                          ++currentTurn;
-                        });
+                  setState(() {
+                    db.collection('Characters').getDocuments().then((snapshot) {
+                      for (DocumentSnapshot ds in snapshot.documents) {
+                        Map<String, dynamic> newData =
+                            new Map<String, dynamic>();
+                        newData['Turn'] = ds.data['Turn'] - 1;
+                        if (newData['Turn'] == 0)
+                          newData['Turn'] = snapshot.documents.length;
+                        ds.reference.updateData(newData);
+                        if (ds.data['OriginalFirst'] && newData['Turn'] == 1) {
+                          setState(() {
+                            ++currentTurn;
+                          });
+                        }
                       }
-                    }
+                    });
                   });
                 },
               ),
